@@ -381,11 +381,19 @@ pub fn check_available() -> Result<()> {
         MFStartup(MF_VERSION, MFSTARTUP_FULL)
             .map_err(|e| Error::Platform(format!("Failed to start MF: {}", e)))?;
 
-        let result = find_h264_encoder();
+        // Convert Result<IMFTransform, Error> to Result<(), Error>
+        // We need to drop the transform BEFORE shutting down COM/MF to avoid access violation
+        let result = match find_h264_encoder() {
+            Ok(_transform) => {
+                // Transform is dropped here, before MFShutdown
+                Ok(())
+            }
+            Err(e) => Err(e),
+        };
 
         MFShutdown().ok();
         CoUninitialize();
 
-        result.map(|_transform| ())
+        result
     }
 }
