@@ -1,0 +1,54 @@
+[package]
+name = "minmpeg"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+description = "Minimal video generation FFI library for slideshow and video juxtaposition"
+repository = "https://github.com/ideamans/rust-minmpeg"
+
+[lib]
+name = "minmpeg"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+# Image processing
+image = "0.25"
+
+# FFI support
+libc = "0.2"
+
+# Error handling
+thiserror = "2"
+
+# AV1 encoding (libaom)
+rav1e = { version = "0.7", optional = true }
+
+# MP4 muxing
+mp4 = "0.14"
+
+# WebM muxing
+webm = "1"
+
+# Video decoding uses ffmpeg process calls, no library dependency needed
+
+# macOS uses direct FFI calls to VideoToolbox, no extra dependencies needed
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Media Foundation for H.264 on Windows
+windows = { version = "0.58", features = [
+    "Win32_Media_MediaFoundation",
+    "Win32_System_Com",
+    "Win32_Foundation",
+] }
+
+[features]
+default = ["av1"]
+av1 = ["rav1e"]
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1

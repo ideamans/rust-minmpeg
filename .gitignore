@@ -1,0 +1,24 @@
+# Rust
+/target/
+Cargo.lock
+
+# Go
+golang/*.a
+golang/*.so
+golang/*.dylib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+*.webm
+*.mp4
+*.log
