@@ -13,7 +13,8 @@ mod windows;
 mod linux;
 
 /// Check if H.264 encoding is available
-pub fn check_available(_ffmpeg_path: Option<&str>) -> Result<()> {
+#[allow(unused_variables)]
+pub fn check_available(ffmpeg_path: Option<&str>) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
         macos::check_available()
@@ -31,8 +32,7 @@ pub fn check_available(_ffmpeg_path: Option<&str>) -> Result<()> {
 
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
-        let _ = ffmpeg_path;
-        Err(Error::CodecUnavailable(
+        Err(crate::Error::CodecUnavailable(
             "H.264 not supported on this platform".to_string(),
         ))
     }

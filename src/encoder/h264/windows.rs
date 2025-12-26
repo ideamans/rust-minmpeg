@@ -3,7 +3,6 @@
 use super::super::{Encoder, EncoderConfig, Frame, Packet};
 use crate::{Error, Result};
 use std::ptr;
-use windows::core::GUID;
 use windows::Win32::Media::MediaFoundation::*;
 use windows::Win32::System::Com::*;
 
@@ -31,13 +30,8 @@ impl MediaFoundationEncoder {
             MFStartup(MF_VERSION, MFSTARTUP_FULL)
                 .map_err(|e| Error::Platform(format!("Failed to start MF: {}", e)))?;
 
-            // Find H.264 encoder
-            let encoder_clsid = find_h264_encoder()?;
-
-            // Create encoder instance
-            let transform: IMFTransform =
-                CoCreateInstance(&encoder_clsid, None, CLSCTX_INPROC_SERVER)
-                    .map_err(|e| Error::Encode(format!("Failed to create encoder: {}", e)))?;
+            // Find and create H.264 encoder
+            let transform = find_h264_encoder()?;
 
             // Create input media type (NV12)
             let input_type: IMFMediaType = MFCreateMediaType()
@@ -257,14 +251,10 @@ impl MediaFoundationEncoder {
             };
 
             // Get buffer requirements
-            let mut stream_info = MFT_OUTPUT_STREAM_INFO::default();
-            if self
-                .transform
-                .GetOutputStreamInfo(0, &mut stream_info)
-                .is_err()
-            {
-                break;
-            }
+            let stream_info = match self.transform.GetOutputStreamInfo(0) {
+                Ok(info) => info,
+                Err(_) => break,
+            };
 
             let output_buffer: IMFMediaBuffer = match MFCreateMemoryBuffer(stream_info.cbSize) {
                 Ok(b) => b,
@@ -319,10 +309,10 @@ impl Drop for MediaFoundationEncoder {
     }
 }
 
-fn find_h264_encoder() -> Result<GUID> {
+fn find_h264_encoder() -> Result<IMFTransform> {
     unsafe {
         let mut count = 0u32;
-        let mut clsids: *mut GUID = ptr::null_mut();
+        let mut activates: *mut Option<IMFActivate> = ptr::null_mut();
 
         let input_type = MFT_REGISTER_TYPE_INFO {
             guidMajorType: MFMediaType_Video,
@@ -339,21 +329,35 @@ fn find_h264_encoder() -> Result<GUID> {
             MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_ASYNCMFT | MFT_ENUM_FLAG_HARDWARE,
             Some(&input_type),
             Some(&output_type),
-            &mut clsids,
+            &mut activates,
             &mut count,
         )
         .map_err(|e| Error::CodecUnavailable(format!("Failed to enumerate encoders: {}", e)))?;
 
-        if count == 0 {
+        if count == 0 || activates.is_null() {
             return Err(Error::CodecUnavailable(
                 "No H.264 encoder found".to_string(),
             ));
         }
 
-        let encoder_clsid = *clsids;
-        CoTaskMemFree(Some(clsids as *const _));
+        // Get the first activate object
+        let activate_slice = std::slice::from_raw_parts(activates, count as usize);
+        let activate = activate_slice[0]
+            .as_ref()
+            .ok_or_else(|| Error::CodecUnavailable("Invalid activate object".to_string()))?;
 
-        Ok(encoder_clsid)
+        // Create transform from activate
+        let transform: IMFTransform = activate
+            .ActivateObject()
+            .map_err(|e| Error::CodecUnavailable(format!("Failed to activate encoder: {}", e)))?;
+
+        // Free the activate array
+        for i in 0..count as usize {
+            drop(activate_slice[i].clone());
+        }
+        CoTaskMemFree(Some(activates as *const _));
+
+        Ok(transform)
     }
 }
 
@@ -380,6 +384,6 @@ pub fn check_available() -> Result<()> {
         MFShutdown().ok();
         CoUninitialize();
 
-        result.map(|_| ())
+        result.map(|_transform| ())
     }
 }

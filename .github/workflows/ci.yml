@@ -10,6 +10,28 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  version-check:
+    name: Version Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version not already released
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "Current version in Cargo.toml: $VERSION"
+
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "::error::Version $VERSION has already been released. Please bump the version in Cargo.toml."
+            exit 1
+          fi
+
+          echo "Version $VERSION is available for release."
+
   test:
     strategy:
       fail-fast: false
@@ -50,7 +72,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y nasm
+          sudo apt-get install -y nasm ffmpeg
 
       - name: Build
         run: cargo build --verbose
@@ -69,6 +91,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm ffmpeg
 
       - name: Check format
         run: cargo fmt --all -- --check
