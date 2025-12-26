@@ -265,7 +265,8 @@ impl MediaFoundationEncoder {
                 break;
             }
 
-            output_info.pSample = std::mem::ManuallyDrop::new(Some(output_sample.clone()));
+            let sample_clone = output_sample.clone();
+            output_info.pSample = std::mem::ManuallyDrop::new(Some(output_sample));
 
             let result = self
                 .transform
@@ -275,8 +276,9 @@ impl MediaFoundationEncoder {
                 break;
             }
 
-            // Extract data from sample
-            if let Some(sample) = output_info.pSample.take() {
+            // Extract data from sample (use clone since output_info was moved)
+            {
+                let sample = sample_clone;
                 if let Ok(buffer) = sample.GetBufferByIndex(0) {
                     let mut data_ptr: *mut u8 = ptr::null_mut();
                     let mut length = 0u32;

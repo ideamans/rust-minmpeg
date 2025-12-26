@@ -8,8 +8,10 @@ use std::process::{Child, Command, Stdio};
 /// FFmpeg-based H.264 encoder for Linux
 pub struct FfmpegEncoder {
     process: Child,
+    #[allow(dead_code)]
     config: EncoderConfig,
     frame_count: u64,
+    #[allow(dead_code)]
     output_buffer: Vec<u8>,
 }
 
