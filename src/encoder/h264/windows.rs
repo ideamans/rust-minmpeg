@@ -85,6 +85,11 @@ impl MediaFoundationEncoder {
                 .SetUINT32(&MF_MT_AVG_BITRATE, bitrate)
                 .map_err(|e| Error::Encode(format!("Failed to set bitrate: {}", e)))?;
 
+            // Set interlace mode (progressive scan)
+            output_type
+                .SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)
+                .map_err(|e| Error::Encode(format!("Failed to set interlace mode: {}", e)))?;
+
             // Set output type
             transform
                 .SetOutputType(0, &output_type, 0)
