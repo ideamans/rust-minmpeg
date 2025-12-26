@@ -14,6 +14,8 @@ pub struct MediaFoundationEncoder {
     config: EncoderConfig,
     frame_count: u64,
     initialized: bool,
+    sps: Option<Vec<u8>>,
+    pps: Option<Vec<u8>>,
 }
 
 unsafe impl Send for MediaFoundationEncoder {}
@@ -107,6 +109,8 @@ impl MediaFoundationEncoder {
                 config,
                 frame_count: 0,
                 initialized: true,
+                sps: None,
+                pps: None,
             })
         }
     }
@@ -239,6 +243,14 @@ impl Encoder for MediaFoundationEncoder {
             self.get_output_packets()
         }
     }
+
+    fn codec_config(&self) -> Option<Vec<u8>> {
+        self.sps.clone()
+    }
+
+    fn pps(&self) -> Option<Vec<u8>> {
+        self.pps.clone()
+    }
 }
 
 impl MediaFoundationEncoder {
@@ -292,6 +304,11 @@ impl MediaFoundationEncoder {
                         let data = std::slice::from_raw_parts(data_ptr, length as usize).to_vec();
                         buffer.Unlock().ok();
 
+                        // Extract SPS/PPS from NAL units (Annex B format)
+                        if self.sps.is_none() || self.pps.is_none() {
+                            self.extract_sps_pps(&data);
+                        }
+
                         packets.push(Packet {
                             data,
                             pts: self.frame_count as i64 - 1,
@@ -304,6 +321,56 @@ impl MediaFoundationEncoder {
         }
 
         Ok(packets)
+    }
+
+    /// Extract SPS and PPS from Annex B NAL units
+    fn extract_sps_pps(&mut self, data: &[u8]) {
+        let mut i = 0;
+        while i < data.len() {
+            // Look for start code (0x00 0x00 0x01 or 0x00 0x00 0x00 0x01)
+            if i + 3 < data.len() && data[i] == 0 && data[i + 1] == 0 {
+                let (start_code_len, nal_start) = if data[i + 2] == 1 {
+                    (3, i + 3)
+                } else if i + 4 < data.len() && data[i + 2] == 0 && data[i + 3] == 1 {
+                    (4, i + 4)
+                } else {
+                    i += 1;
+                    continue;
+                };
+
+                if nal_start >= data.len() {
+                    break;
+                }
+
+                // Find end of this NAL unit (next start code or end of data)
+                let mut nal_end = data.len();
+                for j in nal_start..data.len() - 2 {
+                    if data[j] == 0 && data[j + 1] == 0 && (data[j + 2] == 1 || (j + 3 < data.len() && data[j + 2] == 0 && data[j + 3] == 1)) {
+                        nal_end = j;
+                        break;
+                    }
+                }
+
+                // Get NAL type (lower 5 bits of first byte)
+                let nal_type = data[nal_start] & 0x1F;
+
+                match nal_type {
+                    7 => {
+                        // SPS
+                        self.sps = Some(data[nal_start..nal_end].to_vec());
+                    }
+                    8 => {
+                        // PPS
+                        self.pps = Some(data[nal_start..nal_end].to_vec());
+                    }
+                    _ => {}
+                }
+
+                i = nal_start + start_code_len;
+            } else {
+                i += 1;
+            }
+        }
     }
 }
 
