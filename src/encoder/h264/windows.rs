@@ -307,14 +307,10 @@ impl MediaFoundationEncoder {
     }
 }
 
-impl Drop for MediaFoundationEncoder {
-    fn drop(&mut self) {
-        unsafe {
-            MFShutdown().ok();
-            CoUninitialize();
-        }
-    }
-}
+// Note: We intentionally don't implement Drop to call MFShutdown/CoUninitialize.
+// MFStartup/MFShutdown are process-wide, and calling MFShutdown while another
+// encoder is still active (in parallel tests) causes crashes.
+// COM/MF will be cleaned up when the process exits.
 
 fn find_h264_encoder() -> Result<IMFTransform> {
     unsafe {
@@ -386,19 +382,11 @@ pub fn check_available() -> Result<()> {
         MFStartup(MF_VERSION, MFSTARTUP_FULL)
             .map_err(|e| Error::Platform(format!("Failed to start MF: {}", e)))?;
 
-        // Convert Result<IMFTransform, Error> to Result<(), Error>
-        // We need to drop the transform BEFORE shutting down COM/MF to avoid access violation
-        let result = match find_h264_encoder() {
-            Ok(_transform) => {
-                // Transform is dropped here, before MFShutdown
-                Ok(())
-            }
+        // Just check if we can find an encoder
+        // Don't call MFShutdown/CoUninitialize - it affects other encoders in parallel tests
+        match find_h264_encoder() {
+            Ok(_transform) => Ok(()),
             Err(e) => Err(e),
-        };
-
-        MFShutdown().ok();
-        CoUninitialize();
-
-        result
+        }
     }
 }
