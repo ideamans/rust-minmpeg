@@ -1,6 +1,6 @@
 //! Slideshow video generation
 
-use crate::encoder::{create_encoder, EncoderConfig, Frame};
+use crate::encoder::{create_encoder, EncoderConfig, Frame, Packet};
 use crate::image_loader::LoadedImage;
 use crate::muxer::{create_muxer, MuxerConfig};
 use crate::{EncodeOptions, Error, Result, SlideEntry};
@@ -51,18 +51,10 @@ pub fn slideshow(entries: &[SlideEntry], options: &EncodeOptions) -> Result<()> 
 
     let mut encoder = create_encoder(options.codec, encoder_config.clone())?;
 
-    // Create muxer
-    let muxer_config = MuxerConfig {
-        width: target_width,
-        height: target_height,
-        fps: DEFAULT_FPS,
-        codec: options.codec,
-        codec_config: encoder.codec_config(),
-    };
-
-    let mut muxer = create_muxer(options.container, &options.output_path, muxer_config)?;
-
-    // Generate frames
+    // Generate all frames and collect packets
+    // We need to encode at least one frame before creating the muxer
+    // so that H.264 encoders can extract SPS/PPS
+    let mut all_packets: Vec<Packet> = Vec::new();
     let mut total_ms: u64 = 0;
 
     for (image, duration_ms) in &images {
@@ -79,17 +71,30 @@ pub fn slideshow(entries: &[SlideEntry], options: &EncodeOptions) -> Result<()> 
             };
 
             let packets = encoder.encode(&frame)?;
-            for packet in packets {
-                muxer.write_packet(&packet)?;
-            }
+            all_packets.extend(packets);
 
             total_ms += 1000 / DEFAULT_FPS as u64;
         }
     }
 
     // Flush encoder
-    let packets = encoder.flush()?;
-    for packet in packets {
+    let flush_packets = encoder.flush()?;
+    all_packets.extend(flush_packets);
+
+    // Now create muxer with SPS/PPS from encoder (available after encoding)
+    let muxer_config = MuxerConfig {
+        width: target_width,
+        height: target_height,
+        fps: DEFAULT_FPS,
+        codec: options.codec,
+        codec_config: encoder.codec_config(),
+        pps: encoder.pps(),
+    };
+
+    let mut muxer = create_muxer(options.container, &options.output_path, muxer_config)?;
+
+    // Write all packets
+    for packet in all_packets {
         muxer.write_packet(&packet)?;
     }
 

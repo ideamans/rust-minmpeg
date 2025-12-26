@@ -41,8 +41,13 @@ pub trait Encoder: Send {
     /// Flush remaining packets
     fn flush(&mut self) -> Result<Vec<Packet>>;
 
-    /// Get the codec-specific configuration data (e.g., SPS/PPS for H.264)
+    /// Get the codec-specific configuration data (SPS for H.264)
     fn codec_config(&self) -> Option<Vec<u8>> {
+        None
+    }
+
+    /// Get the Picture Parameter Set (PPS for H.264)
+    fn pps(&self) -> Option<Vec<u8>> {
         None
     }
 }

@@ -177,16 +177,8 @@ pub fn juxtapose<P: AsRef<Path>>(
 
     let mut encoder = create_encoder(options.codec, encoder_config.clone())?;
 
-    // Create muxer
-    let muxer_config = MuxerConfig {
-        width: output_width,
-        height: output_height,
-        fps: DEFAULT_FPS,
-        codec: options.codec,
-        codec_config: encoder.codec_config(),
-    };
-
-    let mut muxer = create_muxer(options.container, &options.output_path, muxer_config)?;
+    // Collect all packets first (to get SPS/PPS for H.264 muxer)
+    let mut all_packets: Vec<crate::encoder::Packet> = Vec::new();
 
     // Process frames
     for frame_idx in 0..total_frames {
@@ -211,14 +203,27 @@ pub fn juxtapose<P: AsRef<Path>>(
         };
 
         let packets = encoder.encode(&frame)?;
-        for packet in packets {
-            muxer.write_packet(&packet)?;
-        }
+        all_packets.extend(packets);
     }
 
     // Flush encoder
-    let packets = encoder.flush()?;
-    for packet in packets {
+    let flush_packets = encoder.flush()?;
+    all_packets.extend(flush_packets);
+
+    // Create muxer with SPS/PPS from encoder (available after encoding)
+    let muxer_config = MuxerConfig {
+        width: output_width,
+        height: output_height,
+        fps: DEFAULT_FPS,
+        codec: options.codec,
+        codec_config: encoder.codec_config(),
+        pps: encoder.pps(),
+    };
+
+    let mut muxer = create_muxer(options.container, &options.output_path, muxer_config)?;
+
+    // Write all packets
+    for packet in all_packets {
         muxer.write_packet(&packet)?;
     }
 

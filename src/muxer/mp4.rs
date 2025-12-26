@@ -55,7 +55,7 @@ impl Mp4Muxer {
                 width: config.width as u16,
                 height: config.height as u16,
                 seq_param_set: config.codec_config.clone().unwrap_or_default(),
-                pic_param_set: Vec::new(),
+                pic_param_set: config.pps.clone().unwrap_or_default(),
             }),
         };
 

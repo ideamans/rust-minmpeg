@@ -400,3 +400,275 @@ fn test_slideshow_small_resolution() {
     );
     assert!(verify_file_exists_with_size(&output_path));
 }
+
+// ============================================================================
+// Container/Codec combination tests
+// Supported combinations:
+// - WebM + AV1 (all platforms, using rav1e)
+// - MP4 + H.264 (macOS: VideoToolbox, Windows: MediaFoundation, Linux: ffmpeg)
+// ============================================================================
+
+/// Test MP4 container with H.264 codec (platform-specific)
+#[test]
+#[cfg(target_os = "macos")]
+fn test_slideshow_mp4_h264_macos() {
+    let temp_dir = TempDir::new().unwrap();
+
+    let path = temp_dir.path().join("slide.png");
+    let img = generate_numbered_image(320, 240, 0);
+    save_png(&img, &path).unwrap();
+
+    let entries = vec![SlideEntry {
+        path: path.to_string_lossy().to_string(),
+        duration_ms: 500,
+    }];
+
+    let output_path = temp_dir.path().join("output.mp4");
+
+    let options = EncodeOptions {
+        output_path: output_path.to_string_lossy().to_string(),
+        container: Container::Mp4,
+        codec: Codec::H264,
+        quality: 50,
+        ffmpeg_path: None,
+    };
+
+    let result = slideshow(&entries, &options);
+    assert!(
+        result.is_ok(),
+        "MP4+H.264 slideshow failed on macOS: {:?}",
+        result
+    );
+    assert!(verify_file_exists_with_size(&output_path));
+    assert!(
+        verify_mp4_header(&output_path),
+        "Output file is not a valid MP4"
+    );
+}
+
+/// Test MP4 container with H.264 codec on Windows
+#[test]
+#[cfg(target_os = "windows")]
+fn test_slideshow_mp4_h264_windows() {
+    let temp_dir = TempDir::new().unwrap();
+
+    let path = temp_dir.path().join("slide.png");
+    let img = generate_numbered_image(320, 240, 0);
+    save_png(&img, &path).unwrap();
+
+    let entries = vec![SlideEntry {
+        path: path.to_string_lossy().to_string(),
+        duration_ms: 500,
+    }];
+
+    let output_path = temp_dir.path().join("output.mp4");
+
+    let options = EncodeOptions {
+        output_path: output_path.to_string_lossy().to_string(),
+        container: Container::Mp4,
+        codec: Codec::H264,
+        quality: 50,
+        ffmpeg_path: None,
+    };
+
+    let result = slideshow(&entries, &options);
+    assert!(
+        result.is_ok(),
+        "MP4+H.264 slideshow failed on Windows: {:?}",
+        result
+    );
+    assert!(verify_file_exists_with_size(&output_path));
+    assert!(
+        verify_mp4_header(&output_path),
+        "Output file is not a valid MP4"
+    );
+}
+
+/// Test MP4 container with H.264 codec on Linux (requires ffmpeg)
+#[test]
+#[cfg(target_os = "linux")]
+fn test_slideshow_mp4_h264_linux() {
+    use minmpeg::available;
+
+    // First check if H.264 is available (requires ffmpeg)
+    if available(Codec::H264, None).is_err() {
+        println!("Skipping MP4+H.264 test on Linux: ffmpeg not available");
+        return;
+    }
+
+    let temp_dir = TempDir::new().unwrap();
+
+    let path = temp_dir.path().join("slide.png");
+    let img = generate_numbered_image(320, 240, 0);
+    save_png(&img, &path).unwrap();
+
+    let entries = vec![SlideEntry {
+        path: path.to_string_lossy().to_string(),
+        duration_ms: 500,
+    }];
+
+    let output_path = temp_dir.path().join("output.mp4");
+
+    let options = EncodeOptions {
+        output_path: output_path.to_string_lossy().to_string(),
+        container: Container::Mp4,
+        codec: Codec::H264,
+        quality: 50,
+        ffmpeg_path: None,
+    };
+
+    let result = slideshow(&entries, &options);
+    assert!(
+        result.is_ok(),
+        "MP4+H.264 slideshow failed on Linux: {:?}",
+        result
+    );
+    assert!(verify_file_exists_with_size(&output_path));
+    assert!(
+        verify_mp4_header(&output_path),
+        "Output file is not a valid MP4"
+    );
+}
+
+/// Test WebM container with AV1 codec (multiple slides to ensure encoding works)
+#[test]
+fn test_slideshow_webm_av1_multiple() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create 5 slides with different colors
+    let image_paths: Vec<_> = (0..5)
+        .map(|i| {
+            let path = temp_dir.path().join(format!("slide_{}.png", i));
+            let img = generate_numbered_image(320, 240, i);
+            save_png(&img, &path).unwrap();
+            path
+        })
+        .collect();
+
+    let entries: Vec<SlideEntry> = image_paths
+        .iter()
+        .map(|path| SlideEntry {
+            path: path.to_string_lossy().to_string(),
+            duration_ms: 200,
+        })
+        .collect();
+
+    let output_path = temp_dir.path().join("output.webm");
+
+    let options = EncodeOptions {
+        output_path: output_path.to_string_lossy().to_string(),
+        container: Container::WebM,
+        codec: Codec::Av1,
+        quality: 50,
+        ffmpeg_path: None,
+    };
+
+    let result = slideshow(&entries, &options);
+    assert!(
+        result.is_ok(),
+        "WebM+AV1 multiple slides failed: {:?}",
+        result
+    );
+    assert!(verify_file_exists_with_size(&output_path));
+    assert!(verify_webm_header(&output_path));
+
+    // Verify file has reasonable size for 5 slides
+    let size = get_file_size(&output_path).unwrap();
+    assert!(size > 2000, "Output file too small for 5 slides: {} bytes", size);
+}
+
+/// Test MP4 container with H.264 codec (multiple slides, macOS)
+#[test]
+#[cfg(target_os = "macos")]
+fn test_slideshow_mp4_h264_multiple_macos() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create 5 slides with different colors
+    let image_paths: Vec<_> = (0..5)
+        .map(|i| {
+            let path = temp_dir.path().join(format!("slide_{}.png", i));
+            let img = generate_numbered_image(320, 240, i);
+            save_png(&img, &path).unwrap();
+            path
+        })
+        .collect();
+
+    let entries: Vec<SlideEntry> = image_paths
+        .iter()
+        .map(|path| SlideEntry {
+            path: path.to_string_lossy().to_string(),
+            duration_ms: 200,
+        })
+        .collect();
+
+    let output_path = temp_dir.path().join("output.mp4");
+
+    let options = EncodeOptions {
+        output_path: output_path.to_string_lossy().to_string(),
+        container: Container::Mp4,
+        codec: Codec::H264,
+        quality: 50,
+        ffmpeg_path: None,
+    };
+
+    let result = slideshow(&entries, &options);
+    assert!(
+        result.is_ok(),
+        "MP4+H.264 multiple slides failed on macOS: {:?}",
+        result
+    );
+    assert!(verify_file_exists_with_size(&output_path));
+    assert!(verify_mp4_header(&output_path));
+
+    // Verify file has reasonable size for 5 slides
+    let size = get_file_size(&output_path).unwrap();
+    assert!(size > 2000, "Output file too small for 5 slides: {} bytes", size);
+}
+
+/// Test MP4 container with H.264 codec (multiple slides, Windows)
+#[test]
+#[cfg(target_os = "windows")]
+fn test_slideshow_mp4_h264_multiple_windows() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create 5 slides with different colors
+    let image_paths: Vec<_> = (0..5)
+        .map(|i| {
+            let path = temp_dir.path().join(format!("slide_{}.png", i));
+            let img = generate_numbered_image(320, 240, i);
+            save_png(&img, &path).unwrap();
+            path
+        })
+        .collect();
+
+    let entries: Vec<SlideEntry> = image_paths
+        .iter()
+        .map(|path| SlideEntry {
+            path: path.to_string_lossy().to_string(),
+            duration_ms: 200,
+        })
+        .collect();
+
+    let output_path = temp_dir.path().join("output.mp4");
+
+    let options = EncodeOptions {
+        output_path: output_path.to_string_lossy().to_string(),
+        container: Container::Mp4,
+        codec: Codec::H264,
+        quality: 50,
+        ffmpeg_path: None,
+    };
+
+    let result = slideshow(&entries, &options);
+    assert!(
+        result.is_ok(),
+        "MP4+H.264 multiple slides failed on Windows: {:?}",
+        result
+    );
+    assert!(verify_file_exists_with_size(&output_path));
+    assert!(verify_mp4_header(&output_path));
+
+    // Verify file has reasonable size for 5 slides
+    let size = get_file_size(&output_path).unwrap();
+    assert!(size > 2000, "Output file too small for 5 slides: {} bytes", size);
+}

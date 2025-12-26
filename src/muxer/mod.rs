@@ -27,8 +27,10 @@ pub struct MuxerConfig {
     pub fps: u32,
     /// Video codec
     pub codec: Codec,
-    /// Codec-specific configuration data (e.g., SPS/PPS for H.264)
+    /// Codec-specific configuration data (SPS for H.264)
     pub codec_config: Option<Vec<u8>>,
+    /// Picture Parameter Set (PPS for H.264)
+    pub pps: Option<Vec<u8>>,
 }
 
 /// Create a muxer for the specified container format

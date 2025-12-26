@@ -227,24 +227,57 @@ impl Muxer for WebmMuxer {
 
 // EBML encoding helpers
 
+/// Encode an EBML element ID.
+///
+/// EBML IDs have class markers in their leading bits that indicate the ID length:
+/// - Class A (1-byte): 1xxx xxxx (0x80-0xFF)
+/// - Class B (2-byte): 01xx xxxx xxxx xxxx (0x4000-0x7FFF)
+/// - Class C (3-byte): 001x xxxx ... (0x200000-0x3FFFFF)
+/// - Class D (4-byte): 0001 xxxx ... (0x10000000-0x1FFFFFFF)
 fn encode_ebml_id(id: u32) -> Vec<u8> {
-    if id <= 0x7F {
+    // Detect the class based on the ID value's leading bits
+    if (0x80..=0xFF).contains(&id) {
+        // Class A: 1-byte ID
         vec![id as u8]
-    } else if id <= 0x3FFF {
+    } else if (0x4000..=0x7FFF).contains(&id) {
+        // Class B: 2-byte ID
         vec![(id >> 8) as u8, (id & 0xFF) as u8]
-    } else if id <= 0x1FFFFF {
+    } else if (0x200000..=0x3FFFFF).contains(&id) {
+        // Class C: 3-byte ID
         vec![
             (id >> 16) as u8,
             ((id >> 8) & 0xFF) as u8,
             (id & 0xFF) as u8,
         ]
-    } else {
+    } else if (0x10000000..=0x1FFFFFFF).contains(&id) {
+        // Class D: 4-byte ID
         vec![
             (id >> 24) as u8,
             ((id >> 16) & 0xFF) as u8,
             ((id >> 8) & 0xFF) as u8,
             (id & 0xFF) as u8,
         ]
+    } else {
+        // Fallback: encode as minimal bytes needed
+        // This handles non-standard IDs (if any)
+        if id <= 0xFF {
+            vec![id as u8]
+        } else if id <= 0xFFFF {
+            vec![(id >> 8) as u8, (id & 0xFF) as u8]
+        } else if id <= 0xFFFFFF {
+            vec![
+                (id >> 16) as u8,
+                ((id >> 8) & 0xFF) as u8,
+                (id & 0xFF) as u8,
+            ]
+        } else {
+            vec![
+                (id >> 24) as u8,
+                ((id >> 16) & 0xFF) as u8,
+                ((id >> 8) & 0xFF) as u8,
+                (id & 0xFF) as u8,
+            ]
+        }
     }
 }
 
