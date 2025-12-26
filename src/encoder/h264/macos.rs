@@ -41,8 +41,7 @@ extern "C" {
 
     fn VTCompressionSessionInvalidate(session: *mut c_void);
 
-    fn VTSessionSetProperty(session: *mut c_void, key: *const c_void, value: *const c_void)
-        -> i32;
+    fn VTSessionSetProperty(session: *mut c_void, key: *const c_void, value: *const c_void) -> i32;
 }
 
 #[link(name = "CoreMedia", kind = "framework")]
@@ -381,7 +380,8 @@ extern "C" fn compression_output_callback(
         }
 
         let mut buffer = vec![0u8; data_length];
-        let copy_status = CMBlockBufferCopyDataBytes(block_buffer, 0, data_length, buffer.as_mut_ptr());
+        let copy_status =
+            CMBlockBufferCopyDataBytes(block_buffer, 0, data_length, buffer.as_mut_ptr());
 
         if copy_status != 0 {
             return;
@@ -481,18 +481,24 @@ extern "C" {
 const K_CF_NUMBER_INT64_TYPE: i32 = 4;
 
 fn create_cf_number(value: i64) -> *mut c_void {
-    unsafe { CFNumberCreate(ptr::null(), K_CF_NUMBER_INT64_TYPE, &value as *const _ as *const c_void) }
+    unsafe {
+        CFNumberCreate(
+            ptr::null(),
+            K_CF_NUMBER_INT64_TYPE,
+            &value as *const _ as *const c_void,
+        )
+    }
 }
 
 fn calculate_bitrate(config: &EncoderConfig) -> u32 {
     // Base bitrate calculation based on resolution and quality
     let pixels = config.width * config.height;
     let base_bitrate = match pixels {
-        p if p <= 320 * 240 => 500_000,      // QVGA: 500 kbps
-        p if p <= 640 * 480 => 1_000_000,    // VGA: 1 Mbps
-        p if p <= 1280 * 720 => 2_500_000,   // 720p: 2.5 Mbps
-        p if p <= 1920 * 1080 => 5_000_000,  // 1080p: 5 Mbps
-        _ => 8_000_000,                       // 4K+: 8 Mbps
+        p if p <= 320 * 240 => 500_000,     // QVGA: 500 kbps
+        p if p <= 640 * 480 => 1_000_000,   // VGA: 1 Mbps
+        p if p <= 1280 * 720 => 2_500_000,  // 720p: 2.5 Mbps
+        p if p <= 1920 * 1080 => 5_000_000, // 1080p: 5 Mbps
+        _ => 8_000_000,                     // 4K+: 8 Mbps
     };
 
     // Adjust by quality (0-100)

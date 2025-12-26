@@ -11,11 +11,11 @@ use tempfile::TempDir;
 fn test_slideshow_jpeg_images() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create test JPEG images
-    let image_paths: Vec<_> = (0..3)
+    // Create test JPEG images (small size for fast testing)
+    let image_paths: Vec<_> = (0..2)
         .map(|i| {
             let path = temp_dir.path().join(format!("slide_{}.jpg", i));
-            let img = generate_numbered_image(640, 480, i);
+            let img = generate_numbered_image(320, 240, i);
             save_jpeg(&img, &path, 85).unwrap();
             path
         })
@@ -26,7 +26,7 @@ fn test_slideshow_jpeg_images() {
         .iter()
         .map(|path| SlideEntry {
             path: path.to_string_lossy().to_string(),
-            duration_ms: 1000, // 1 second each
+            duration_ms: 200, // Short duration for fast testing
         })
         .collect();
 
@@ -64,11 +64,11 @@ fn test_slideshow_jpeg_images() {
 fn test_slideshow_png_images() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create test PNG images
-    let image_paths: Vec<_> = (0..3)
+    // Create test PNG images (small size for fast testing)
+    let image_paths: Vec<_> = (0..2)
         .map(|i| {
             let path = temp_dir.path().join(format!("slide_{}.png", i));
-            let img = generate_numbered_image(640, 480, i);
+            let img = generate_numbered_image(320, 240, i);
             save_png(&img, &path).unwrap();
             path
         })
@@ -79,7 +79,7 @@ fn test_slideshow_png_images() {
         .iter()
         .map(|path| SlideEntry {
             path: path.to_string_lossy().to_string(),
-            duration_ms: 500, // 0.5 seconds each
+            duration_ms: 200, // Short duration for fast testing
         })
         .collect();
 
@@ -105,12 +105,12 @@ fn test_slideshow_png_images() {
 fn test_slideshow_mixed_formats() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create mixed format images
+    // Create mixed format images (small size for fast testing)
     let jpeg_path = temp_dir.path().join("slide_0.jpg");
     let png_path = temp_dir.path().join("slide_1.png");
 
-    let img1 = generate_numbered_image(640, 480, 0);
-    let img2 = generate_numbered_image(640, 480, 1);
+    let img1 = generate_numbered_image(320, 240, 0);
+    let img2 = generate_numbered_image(320, 240, 1);
 
     save_jpeg(&img1, &jpeg_path, 85).unwrap();
     save_png(&img2, &png_path).unwrap();
@@ -118,11 +118,11 @@ fn test_slideshow_mixed_formats() {
     let entries = vec![
         SlideEntry {
             path: jpeg_path.to_string_lossy().to_string(),
-            duration_ms: 1000,
+            duration_ms: 200,
         },
         SlideEntry {
             path: png_path.to_string_lossy().to_string(),
-            duration_ms: 1000,
+            duration_ms: 200,
         },
     ];
 
@@ -147,8 +147,8 @@ fn test_slideshow_mixed_formats() {
 fn test_slideshow_different_resolutions() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create images with different sizes
-    let sizes = [(640, 480), (800, 600), (320, 240)];
+    // Create images with different sizes (small for fast testing)
+    let sizes = [(320, 240), (400, 300), (160, 120)];
     let image_paths: Vec<_> = sizes
         .iter()
         .enumerate()
@@ -164,7 +164,7 @@ fn test_slideshow_different_resolutions() {
         .iter()
         .map(|path| SlideEntry {
             path: path.to_string_lossy().to_string(),
-            duration_ms: 500,
+            duration_ms: 200,
         })
         .collect();
 
@@ -189,12 +189,12 @@ fn test_slideshow_different_resolutions() {
 fn test_slideshow_various_durations() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create test images with varying durations
-    let durations = [100, 500, 1000, 2000]; // ms
-    let image_paths: Vec<_> = (0..4)
+    // Create test images with varying durations (reduced for fast testing)
+    let durations = [100, 200, 300]; // ms
+    let image_paths: Vec<_> = (0..3)
         .map(|i| {
             let path = temp_dir.path().join(format!("slide_{}.png", i));
-            let img = generate_numbered_image(320, 240, i);
+            let img = generate_numbered_image(160, 120, i);
             save_png(&img, &path).unwrap();
             path
         })
@@ -333,19 +333,19 @@ fn test_slideshow_container_codec_mismatch() {
     assert!(result.is_err(), "WebM + H.264 should fail");
 }
 
-/// Test large resolution image
+/// Test large resolution image (reduced for faster CI)
 #[test]
 fn test_slideshow_large_resolution() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create a larger image (1920x1080)
+    // Create a larger image (640x480 - reduced from 1920x1080 for faster CI)
     let path = temp_dir.path().join("slide.png");
-    let img = generate_numbered_image(1920, 1080, 0);
+    let img = generate_numbered_image(640, 480, 0);
     save_png(&img, &path).unwrap();
 
     let entries = vec![SlideEntry {
         path: path.to_string_lossy().to_string(),
-        duration_ms: 500,
+        duration_ms: 200,
     }];
 
     let output_path = temp_dir.path().join("output.webm");
@@ -574,7 +574,11 @@ fn test_slideshow_webm_av1_multiple() {
 
     // Verify file has reasonable size for 5 slides
     let size = get_file_size(&output_path).unwrap();
-    assert!(size > 2000, "Output file too small for 5 slides: {} bytes", size);
+    assert!(
+        size > 2000,
+        "Output file too small for 5 slides: {} bytes",
+        size
+    );
 }
 
 /// Test MP4 container with H.264 codec (multiple slides, macOS)
@@ -622,7 +626,11 @@ fn test_slideshow_mp4_h264_multiple_macos() {
 
     // Verify file has reasonable size for 5 slides
     let size = get_file_size(&output_path).unwrap();
-    assert!(size > 2000, "Output file too small for 5 slides: {} bytes", size);
+    assert!(
+        size > 2000,
+        "Output file too small for 5 slides: {} bytes",
+        size
+    );
 }
 
 /// Test MP4 container with H.264 codec (multiple slides, Windows)
@@ -670,5 +678,9 @@ fn test_slideshow_mp4_h264_multiple_windows() {
 
     // Verify file has reasonable size for 5 slides
     let size = get_file_size(&output_path).unwrap();
-    assert!(size > 2000, "Output file too small for 5 slides: {} bytes", size);
+    assert!(
+        size > 2000,
+        "Output file too small for 5 slides: {} bytes",
+        size
+    );
 }

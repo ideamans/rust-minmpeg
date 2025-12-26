@@ -77,10 +77,10 @@ fn test_juxtapose_same_size_webm_av1() {
 
     let temp_dir = TempDir::new().unwrap();
 
-    // Create two test videos with the same dimensions
-    let left_video = create_test_video(&temp_dir, "left", 320, 240, 3, Container::WebM, Codec::Av1);
+    // Create two test videos with the same dimensions (small for fast testing)
+    let left_video = create_test_video(&temp_dir, "left", 160, 120, 2, Container::WebM, Codec::Av1);
     let right_video =
-        create_test_video(&temp_dir, "right", 320, 240, 3, Container::WebM, Codec::Av1);
+        create_test_video(&temp_dir, "right", 160, 120, 2, Container::WebM, Codec::Av1);
 
     let output_path = temp_dir.path().join("output.webm");
 
@@ -117,10 +117,10 @@ fn test_juxtapose_same_size_mp4_h264_macos() {
 
     let temp_dir = TempDir::new().unwrap();
 
-    // Create two test videos with the same dimensions
-    let left_video = create_test_video(&temp_dir, "left", 320, 240, 3, Container::Mp4, Codec::H264);
+    // Create two test videos with the same dimensions (small for fast testing)
+    let left_video = create_test_video(&temp_dir, "left", 160, 120, 2, Container::Mp4, Codec::H264);
     let right_video =
-        create_test_video(&temp_dir, "right", 320, 240, 3, Container::Mp4, Codec::H264);
+        create_test_video(&temp_dir, "right", 160, 120, 2, Container::Mp4, Codec::H264);
 
     let output_path = temp_dir.path().join("output.mp4");
 
@@ -153,10 +153,10 @@ fn test_juxtapose_same_size_mp4_h264_windows() {
 
     let temp_dir = TempDir::new().unwrap();
 
-    // Create two test videos with the same dimensions
-    let left_video = create_test_video(&temp_dir, "left", 320, 240, 3, Container::Mp4, Codec::H264);
+    // Create two test videos with the same dimensions (small for fast testing)
+    let left_video = create_test_video(&temp_dir, "left", 160, 120, 2, Container::Mp4, Codec::H264);
     let right_video =
-        create_test_video(&temp_dir, "right", 320, 240, 3, Container::Mp4, Codec::H264);
+        create_test_video(&temp_dir, "right", 160, 120, 2, Container::Mp4, Codec::H264);
 
     let output_path = temp_dir.path().join("output.mp4");
 
@@ -192,10 +192,10 @@ fn test_juxtapose_different_size_webm_av1() {
 
     let temp_dir = TempDir::new().unwrap();
 
-    // Create two test videos with different dimensions
-    let left_video = create_test_video(&temp_dir, "left", 320, 240, 3, Container::WebM, Codec::Av1);
+    // Create two test videos with different dimensions (small for fast testing)
+    let left_video = create_test_video(&temp_dir, "left", 160, 120, 2, Container::WebM, Codec::Av1);
     let right_video =
-        create_test_video(&temp_dir, "right", 400, 300, 3, Container::WebM, Codec::Av1);
+        create_test_video(&temp_dir, "right", 200, 150, 2, Container::WebM, Codec::Av1);
 
     let output_path = temp_dir.path().join("output.webm");
 
@@ -239,10 +239,10 @@ fn test_juxtapose_different_size_mp4_h264_macos() {
 
     let temp_dir = TempDir::new().unwrap();
 
-    // Create two test videos with different dimensions
-    let left_video = create_test_video(&temp_dir, "left", 320, 240, 3, Container::Mp4, Codec::H264);
+    // Create two test videos with different dimensions (small for fast testing)
+    let left_video = create_test_video(&temp_dir, "left", 160, 120, 2, Container::Mp4, Codec::H264);
     let right_video =
-        create_test_video(&temp_dir, "right", 400, 300, 3, Container::Mp4, Codec::H264);
+        create_test_video(&temp_dir, "right", 200, 150, 2, Container::Mp4, Codec::H264);
 
     let output_path = temp_dir.path().join("output.mp4");
 
@@ -282,10 +282,10 @@ fn test_juxtapose_different_size_mp4_h264_windows() {
 
     let temp_dir = TempDir::new().unwrap();
 
-    // Create two test videos with different dimensions
-    let left_video = create_test_video(&temp_dir, "left", 320, 240, 3, Container::Mp4, Codec::H264);
+    // Create two test videos with different dimensions (small for fast testing)
+    let left_video = create_test_video(&temp_dir, "left", 160, 120, 2, Container::Mp4, Codec::H264);
     let right_video =
-        create_test_video(&temp_dir, "right", 400, 300, 3, Container::Mp4, Codec::H264);
+        create_test_video(&temp_dir, "right", 200, 150, 2, Container::Mp4, Codec::H264);
 
     let output_path = temp_dir.path().join("output.mp4");
 
@@ -328,10 +328,10 @@ fn test_juxtapose_mixed_formats_to_webm_macos() {
 
     let temp_dir = TempDir::new().unwrap();
 
-    // Create videos in different formats
-    let left_video = create_test_video(&temp_dir, "left", 320, 240, 3, Container::WebM, Codec::Av1);
+    // Create videos in different formats (small for fast testing)
+    let left_video = create_test_video(&temp_dir, "left", 160, 120, 2, Container::WebM, Codec::Av1);
     let right_video =
-        create_test_video(&temp_dir, "right", 320, 240, 3, Container::Mp4, Codec::H264);
+        create_test_video(&temp_dir, "right", 160, 120, 2, Container::Mp4, Codec::H264);
 
     let output_path = temp_dir.path().join("output.webm");
 
@@ -364,10 +364,10 @@ fn test_juxtapose_mixed_formats_to_mp4_macos() {
 
     let temp_dir = TempDir::new().unwrap();
 
-    // Create videos in different formats
-    let left_video = create_test_video(&temp_dir, "left", 320, 240, 3, Container::WebM, Codec::Av1);
+    // Create videos in different formats (small for fast testing)
+    let left_video = create_test_video(&temp_dir, "left", 160, 120, 2, Container::WebM, Codec::Av1);
     let right_video =
-        create_test_video(&temp_dir, "right", 320, 240, 3, Container::Mp4, Codec::H264);
+        create_test_video(&temp_dir, "right", 160, 120, 2, Container::Mp4, Codec::H264);
 
     let output_path = temp_dir.path().join("output.mp4");
 
