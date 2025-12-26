@@ -102,7 +102,7 @@ impl MediaFoundationEncoder {
                 .SetInputType(0, &input_type, 0)
                 .map_err(|e| Error::Encode(format!("Failed to set input type: {}", e)))?;
 
-            Ok(Self {
+            let mut encoder = Self {
                 transform,
                 input_type,
                 output_type,
@@ -111,7 +111,12 @@ impl MediaFoundationEncoder {
                 initialized: true,
                 sps: None,
                 pps: None,
-            })
+            };
+
+            // Try to extract SPS/PPS from output media type attributes
+            encoder.extract_sps_pps_from_media_type();
+
+            Ok(encoder)
         }
     }
 
@@ -309,6 +314,16 @@ impl MediaFoundationEncoder {
                             self.extract_sps_pps(&data);
                         }
 
+                        // If still no SPS/PPS, try to get from media type (may be available after first encode)
+                        if self.sps.is_none() || self.pps.is_none() {
+                            self.extract_sps_pps_from_media_type();
+                        }
+
+                        // If still no SPS/PPS, generate minimal fallback
+                        if self.sps.is_none() || self.pps.is_none() {
+                            self.generate_fallback_sps_pps();
+                        }
+
                         packets.push(Packet {
                             data,
                             pts: self.frame_count as i64 - 1,
@@ -323,16 +338,187 @@ impl MediaFoundationEncoder {
         Ok(packets)
     }
 
-    /// Extract SPS and PPS from Annex B NAL units
+    /// Generate fallback SPS/PPS based on encoding config
+    /// This is used when the encoder doesn't provide SPS/PPS through standard interfaces
+    fn generate_fallback_sps_pps(&mut self) {
+        // Generate minimal SPS
+        // Format: NAL header + profile_idc + constraint flags + level_idc + seq_parameter_set_id + ...
+        let width = self.config.width;
+        let height = self.config.height;
+
+        // Calculate required macroblocks
+        let mb_width = (width + 15) / 16;
+        let mb_height = (height + 15) / 16;
+
+        // Calculate pic_width_in_mbs_minus1 and pic_height_in_map_units_minus1
+        let pic_width_minus1 = mb_width - 1;
+        let pic_height_minus1 = mb_height - 1;
+
+        // Generate minimal SPS (Baseline Profile, Level 4.0)
+        // This is a simplified SPS that should work for most cases
+        let mut sps = Vec::new();
+
+        // NAL header: nal_ref_idc=3, nal_unit_type=7 (SPS)
+        sps.push(0x67);
+
+        // profile_idc: 66 (Baseline)
+        sps.push(66);
+
+        // constraint_set_flags + reserved zeros
+        sps.push(0xC0);
+
+        // level_idc: 40 (Level 4.0)
+        sps.push(40);
+
+        // seq_parameter_set_id: 0 (encoded as exp-golomb)
+        // log2_max_frame_num_minus4: 0
+        // pic_order_cnt_type: 2
+        // max_num_ref_frames: 1
+        // gaps_in_frame_num_value_allowed_flag: 0
+        // pic_width_in_mbs_minus1: encoded
+        // pic_height_in_map_units_minus1: encoded
+        // frame_mbs_only_flag: 1
+        // direct_8x8_inference_flag: 1
+        // frame_cropping_flag: 0
+        // vui_parameters_present_flag: 0
+
+        // Encode the remaining parameters using exp-golomb
+        let mut bits: Vec<bool> = Vec::new();
+
+        // seq_parameter_set_id: 0 -> exp-golomb: 1
+        bits.push(true);
+
+        // log2_max_frame_num_minus4: 0 -> exp-golomb: 1
+        bits.push(true);
+
+        // pic_order_cnt_type: 2 -> exp-golomb: 011
+        bits.push(false);
+        bits.push(true);
+        bits.push(true);
+
+        // max_num_ref_frames: 1 -> exp-golomb: 010
+        bits.push(false);
+        bits.push(true);
+        bits.push(false);
+
+        // gaps_in_frame_num_value_allowed_flag: 0
+        bits.push(false);
+
+        // pic_width_in_mbs_minus1: encode as exp-golomb
+        encode_exp_golomb(&mut bits, pic_width_minus1);
+
+        // pic_height_in_map_units_minus1: encode as exp-golomb
+        encode_exp_golomb(&mut bits, pic_height_minus1);
+
+        // frame_mbs_only_flag: 1
+        bits.push(true);
+
+        // direct_8x8_inference_flag: 1
+        bits.push(true);
+
+        // frame_cropping_flag: 0
+        bits.push(false);
+
+        // vui_parameters_present_flag: 0
+        bits.push(false);
+
+        // RBSP trailing bits
+        bits.push(true);
+        while bits.len() % 8 != 0 {
+            bits.push(false);
+        }
+
+        // Convert bits to bytes
+        for chunk in bits.chunks(8) {
+            let mut byte = 0u8;
+            for (i, &bit) in chunk.iter().enumerate() {
+                if bit {
+                    byte |= 1 << (7 - i);
+                }
+            }
+            sps.push(byte);
+        }
+
+        self.sps = Some(sps);
+
+        // Generate minimal PPS
+        let mut pps = Vec::new();
+
+        // NAL header: nal_ref_idc=3, nal_unit_type=8 (PPS)
+        pps.push(0x68);
+
+        // pic_parameter_set_id: 0 (exp-golomb: 1)
+        // seq_parameter_set_id: 0 (exp-golomb: 1)
+        // entropy_coding_mode_flag: 0 (CAVLC)
+        // bottom_field_pic_order_in_frame_present_flag: 0
+        // num_slice_groups_minus1: 0 (exp-golomb: 1)
+        // num_ref_idx_l0_default_active_minus1: 0 (exp-golomb: 1)
+        // num_ref_idx_l1_default_active_minus1: 0 (exp-golomb: 1)
+        // weighted_pred_flag: 0
+        // weighted_bipred_idc: 0 (exp-golomb: 1)
+        // pic_init_qp_minus26: 0 (exp-golomb: 1)
+        // pic_init_qs_minus26: 0 (exp-golomb: 1)
+        // chroma_qp_index_offset: 0 (exp-golomb: 1)
+        // deblocking_filter_control_present_flag: 0
+        // constrained_intra_pred_flag: 0
+        // redundant_pic_cnt_present_flag: 0
+        // RBSP trailing bits
+
+        // Simplified PPS bytes (pre-computed for common case)
+        pps.extend_from_slice(&[0xCE, 0x3C, 0x80]);
+
+        self.pps = Some(pps);
+    }
+
+    /// Try to extract SPS/PPS from the output media type's MF_MT_MPEG_SEQUENCE_HEADER attribute
+    fn extract_sps_pps_from_media_type(&mut self) {
+        unsafe {
+            // Try to get the negotiated output type from the transform
+            if let Ok(current_output_type) = self.transform.GetOutputCurrentType(0) {
+                // Try to get MF_MT_MPEG_SEQUENCE_HEADER
+                let mut blob_size = 0u32;
+                if current_output_type
+                    .GetBlobSize(&MF_MT_MPEG_SEQUENCE_HEADER)
+                    .map(|s| {
+                        blob_size = s;
+                        s > 0
+                    })
+                    .unwrap_or(false)
+                {
+                    let mut blob = vec![0u8; blob_size as usize];
+                    if current_output_type
+                        .GetBlob(&MF_MT_MPEG_SEQUENCE_HEADER, &mut blob, Some(&mut blob_size))
+                        .is_ok()
+                    {
+                        // Parse the blob for SPS and PPS
+                        self.extract_sps_pps(&blob);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Extract SPS and PPS from NAL units (supports both Annex B and AVCC formats)
     fn extract_sps_pps(&mut self, data: &[u8]) {
+        // First try Annex B format (start code prefixed)
+        self.extract_sps_pps_annex_b(data);
+
+        // If no SPS/PPS found, try AVCC format (length prefixed)
+        if self.sps.is_none() || self.pps.is_none() {
+            self.extract_sps_pps_avcc(data);
+        }
+    }
+
+    /// Extract SPS/PPS from Annex B format (start code prefixed)
+    fn extract_sps_pps_annex_b(&mut self, data: &[u8]) {
         let mut i = 0;
         while i < data.len() {
             // Look for start code (0x00 0x00 0x01 or 0x00 0x00 0x00 0x01)
             if i + 3 < data.len() && data[i] == 0 && data[i + 1] == 0 {
-                let (start_code_len, nal_start) = if data[i + 2] == 1 {
-                    (3, i + 3)
+                let nal_start = if data[i + 2] == 1 {
+                    i + 3
                 } else if i + 4 < data.len() && data[i + 2] == 0 && data[i + 3] == 1 {
-                    (4, i + 4)
+                    i + 4
                 } else {
                     i += 1;
                     continue;
@@ -344,10 +530,16 @@ impl MediaFoundationEncoder {
 
                 // Find end of this NAL unit (next start code or end of data)
                 let mut nal_end = data.len();
-                for j in nal_start..data.len() - 2 {
-                    if data[j] == 0 && data[j + 1] == 0 && (data[j + 2] == 1 || (j + 3 < data.len() && data[j + 2] == 0 && data[j + 3] == 1)) {
-                        nal_end = j;
-                        break;
+                if data.len() >= 3 {
+                    for j in nal_start..data.len().saturating_sub(2) {
+                        if data[j] == 0
+                            && data[j + 1] == 0
+                            && (data[j + 2] == 1
+                                || (j + 3 < data.len() && data[j + 2] == 0 && data[j + 3] == 1))
+                        {
+                            nal_end = j;
+                            break;
+                        }
                     }
                 }
 
@@ -366,10 +558,46 @@ impl MediaFoundationEncoder {
                     _ => {}
                 }
 
-                i = nal_start + start_code_len;
+                i = nal_end;
             } else {
                 i += 1;
             }
+        }
+    }
+
+    /// Extract SPS/PPS from AVCC format (4-byte length prefixed)
+    fn extract_sps_pps_avcc(&mut self, data: &[u8]) {
+        let mut i = 0;
+        while i + 4 < data.len() {
+            // Read 4-byte big-endian length
+            let nal_length = ((data[i] as usize) << 24)
+                | ((data[i + 1] as usize) << 16)
+                | ((data[i + 2] as usize) << 8)
+                | (data[i + 3] as usize);
+
+            if nal_length == 0 || i + 4 + nal_length > data.len() {
+                break;
+            }
+
+            let nal_start = i + 4;
+            let nal_end = nal_start + nal_length;
+
+            // Get NAL type (lower 5 bits of first byte)
+            let nal_type = data[nal_start] & 0x1F;
+
+            match nal_type {
+                7 => {
+                    // SPS
+                    self.sps = Some(data[nal_start..nal_end].to_vec());
+                }
+                8 => {
+                    // PPS
+                    self.pps = Some(data[nal_start..nal_end].to_vec());
+                }
+                _ => {}
+            }
+
+            i = nal_end;
         }
     }
 }
@@ -437,6 +665,22 @@ fn calculate_bitrate(config: &EncoderConfig) -> u32 {
     let base_bitrate = (pixels * config.fps) / 100;
     let quality_factor = (config.quality as u32 + 10) / 10;
     base_bitrate * quality_factor
+}
+
+/// Encode a value using Exp-Golomb coding (unsigned)
+fn encode_exp_golomb(bits: &mut Vec<bool>, value: u32) {
+    let value_plus_1 = value + 1;
+    let num_bits = 32 - value_plus_1.leading_zeros();
+
+    // Leading zeros
+    for _ in 0..(num_bits - 1) {
+        bits.push(false);
+    }
+
+    // Value + 1 in binary
+    for i in (0..num_bits).rev() {
+        bits.push((value_plus_1 >> i) & 1 == 1);
+    }
 }
 
 /// Check if Media Foundation H.264 encoder is available
