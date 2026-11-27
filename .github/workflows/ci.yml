@@ -82,7 +82,9 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    # Pinned: on ubuntu-latest (26.04) the newer GCC fails to build webm-sys
+    # (libwebm misses <cstdint>). Same image as the Linux test job.
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
