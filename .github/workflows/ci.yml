@@ -37,7 +37,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-26
             name: macOS ARM64
           - os: ubuntu-24.04
             name: Linux AMD64
@@ -82,7 +82,9 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    # Pinned: on ubuntu-latest (26.04) the newer GCC fails to build webm-sys
+    # (libwebm misses <cstdint>). Same image as the Linux test job.
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
